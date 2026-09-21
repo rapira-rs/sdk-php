@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.1.5](https://github.com/rapira-rs/sdk-php/compare/testing-0.1.4...testing-0.1.5) (2026-09-21)
+
+
+### Documentation
+
+* **testing:** document the GitHub token and dload version cache ([97f301b](https://github.com/rapira-rs/sdk-php/commit/97f301b867619241d536481724b9709cd917218d))
+
 ## [0.1.4](https://github.com/rapira-rs/sdk-php/compare/testing-0.1.3...testing-0.1.4) (2026-09-05)
 
 
