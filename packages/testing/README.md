@@ -28,7 +28,7 @@ composer require --dev rapira/testing
 [![License](https://img.shields.io/packagist/l/rapira/testing.svg?style=flat-square)](LICENSE.md)
 [![Total Downloads](https://img.shields.io/packagist/dt/rapira/testing.svg?style=flat-square)](https://packagist.org/packages/rapira/testing/stats)
 
-The `rapira` binary is downloaded on demand via [DLoad](https://github.com/php-internal/dload) the first time a suite that needs it runs.
+The `rapira` binary is downloaded on demand via [DLoad](https://github.com/php-internal/dload) the first time a suite that needs it runs, which talks to the GitHub API: in CI, see [GitHub API limits and the version cache](#github-api-limits-and-the-version-cache).
 
 ## Usage with Testo
 
@@ -88,3 +88,57 @@ final class WorkerTest
 | `address`      | `'127.0.0.1:8080'` | Listen address (`host:port`, `:port`, or `unix:<path>`).           |
 | `healthPath`   | `'/'`              | Path polled for readiness; must answer 2xx once the app serves.    |
 | `readyTimeout` | `5.0`              | Seconds to wait for the server to answer before failing.           |
+
+## GitHub API limits and the version cache
+
+Every suite that has to fetch the binary asks the GitHub API which releases `rapira-rs/rapira` (or
+`rapira-rs/rapira-windows`) offers. Anonymous requests are capped at 60 per hour per IP — shared with every
+other job on the same runner — so a matrix of a few PHP versions and operating systems can exhaust the quota
+and fail with a rate-limit error. Two settings remove that risk; dload reads both from the environment, no
+`dload.xml` required.
+
+| Variable           | Default                         | Description                                                                                      |
+|--------------------|---------------------------------|--------------------------------------------------------------------------------------------------|
+| `GITHUB_TOKEN`     | —                               | Token used for GitHub API calls. Raises the limit from 60 to 5000 requests per hour.             |
+| `DLOAD_CACHE_DIR`  | per-user cache dir of the OS    | Directory of the version registry — the local database of the releases each repository offers.   |
+| `DLOAD_CACHE_TTL`  | `600`                           | Seconds the last check of a repository stays valid. `0` disables the registry entirely.          |
+
+The registry caches release *metadata*, not the archives: while the TTL holds, a repeated run resolves the
+version from disk without touching the API. The binary itself is downloaded only when the file named by
+`RunRapiraPlugin::$binary` is missing, so a run over an already provisioned `runtime/bin` makes no requests
+at all.
+
+### GitHub Actions
+
+Point `DLOAD_CACHE_DIR` at a directory inside the workspace, persist it with `actions/cache`, and pass
+`GITHUB_TOKEN` to the step that runs the tests:
+
+```yaml
+env:
+  DLOAD_CACHE_DIR: ${{ github.workspace }}/runtime/dload-cache
+
+jobs:
+  tests:
+    steps:
+      # ...checkout, setup-php, composer install
+
+      # A cache entry is immutable, so `run_id` keeps the key missing on every run
+      # and `restore-keys` reads back the newest entry.
+      - name: Restore the dload version registry
+        uses: actions/cache@v6
+        with:
+          path: runtime/dload-cache
+          key: dload-registry-${{ github.run_id }}
+          restore-keys: dload-registry-
+
+      - name: Run tests
+        run: vendor/bin/testo
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+```
+
+`GITHUB_TOKEN` is provided to every workflow automatically; it needs no extra permissions beyond the default
+`contents: read`, since it is used only to read public releases.
+
+When a single suite needs the binary, both settings can be narrowed to the step that runs it instead of the
+whole workflow — the rest of the test matrix then neither reads nor writes the registry.
