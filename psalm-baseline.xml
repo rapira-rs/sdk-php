@@ -34,7 +34,6 @@
     <MissingPureAnnotation>
       <code><![CDATA[__construct]]></code>
       <code><![CDATA[isAbsolutePath]]></code>
-      <code><![CDATA[serveCommand]]></code>
       <code><![CDATA[splitHostPort]]></code>
     </MissingPureAnnotation>
   </file>

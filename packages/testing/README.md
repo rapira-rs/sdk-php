@@ -83,11 +83,13 @@ final class WorkerTest
 
 | Option         | Default            | Description                                                        |
 |----------------|--------------------|--------------------------------------------------------------------|
-| `mode`         | `Mode::Worker`     | Run mode passed as `--mode` (`classic`, `worker`, or `dispatcher`).|
+| `mode`         | `Mode::Worker`     | Run mode: `classic`, `worker`, or `dispatcher`.                    |
 | `worker`       | `'worker.php'`     | Entrypoint script, absolute or relative to the working directory.  |
 | `address`      | `'127.0.0.1:8080'` | Listen address (`host:port`, `:port`, or `unix:<path>`).           |
 | `healthPath`   | `'/'`              | Path polled for readiness; must answer 2xx once the app serves.    |
 | `readyTimeout` | `5.0`              | Seconds to wait for the server to answer before failing.           |
+
+The server runs with a copy of the application's `rapira.toml` in which `mode`, `worker` and `address` replace `http.pool.mode`, `http.pool.entrypoint` and `http.listen`. The base file is `RunRapiraPlugin`'s `config` argument, or `rapira.toml` in the working directory when that argument is omitted; without either, the server runs on rapira's defaults. The copy is written next to the base file, so relative paths in it keep resolving, and is removed when the server stops.
 
 ## GitHub API limits and the version cache
 

@@ -33,6 +33,9 @@ final readonly class DLoader
     /** @var non-empty-string dload identifier of the rapira software */
     private const SOFTWARE = 'rapira';
 
+    /** @var non-empty-string rapira releases {@see Runner} speaks to; 0.x minors break the CLI and config */
+    private const VERSION = '^0.9';
+
     /**
      * @param LoggerInterface $logger Receives each line of dload output at debug level.
      * @param \SplFileInfo|null $archive Local release asset to extract instead of downloading one from
@@ -75,8 +78,12 @@ final readonly class DLoader
         $output = new BufferedOutput(OutputInterface::VERBOSITY_DEBUG);
         $input = new ArrayInput([]);
 
+        # A fresh temp dir per call: on Windows ext/phar keeps a read archive open until the process
+        # ends, so a second download of the same asset into the same temp path is denied.
+        $tempDir = Path::create(\sys_get_temp_dir())->join('rapira-dload-' . \bin2hex(\random_bytes(6)));
+
         $container = Bootstrap::init()
-            ->withConfig(xml: $this->buildConfig($phpVersion), environment: \getenv())
+            ->withConfig(xml: $this->buildConfig($phpVersion, $tempDir), environment: \getenv())
             ->finish();
         $container->set($input, InputInterface::class);
         $container->set($output, OutputInterface::class);
@@ -86,6 +93,7 @@ final readonly class DLoader
         // Target the in-memory software, extracting straight into the requested destination.
         $action = new DownloadConfig();
         $action->software = self::SOFTWARE;
+        $action->version = self::VERSION;
         $action->extractPath = (string) $destination;
         # Follows the OS dload resolved for asset selection, so the layout matches the archive it picks.
         if ($container->get(OperatingSystem::class) === OperatingSystem::Windows) {
@@ -113,6 +121,8 @@ final readonly class DLoader
             $failure = $e;
         }
 
+        @\rmdir((string) $tempDir);
+
         // Surface dload's own progress and diagnostics through the logger.
         $this->logLines($output->fetch());
 
@@ -129,17 +139,19 @@ final readonly class DLoader
      * pattern so only the matching release asset is selected.
      *
      * @param non-empty-string $phpVersion
+     * @param Path $tempDir Directory dload downloads the asset into before extracting it.
      * @return non-empty-string
      *
      * @psalm-pure
      */
-    private function buildConfig(string $phpVersion): string
+    private function buildConfig(string $phpVersion, Path $tempDir): string
     {
         $phpPattern = \htmlspecialchars(\preg_quote($phpVersion, '/'), ENT_QUOTES | ENT_XML1);
+        $tempAttr = \htmlspecialchars((string) $tempDir, ENT_QUOTES | ENT_XML1);
 
         return <<<XML
             <?xml version="1.0"?>
-            <dload>
+            <dload temp-dir="{$tempAttr}">
                 <registry overwrite="false">
                     <software
                         name="Rapira"
