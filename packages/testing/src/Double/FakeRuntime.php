@@ -121,7 +121,10 @@ final class FakeRuntime extends Runtime
         \is_array($request) and $request = new WorkerRequest($request);
 
         $saved = [$_SERVER, $_GET, $_POST, $_COOKIE, $_FILES, $_REQUEST];
-        $_SERVER = $request->server + $_SERVER;
+        // The host builds $_SERVER from the request alone, with no boot-time entries, and PHP adds the
+        // REQUEST_TIME pair. Unlike the host, the double restores $saved: it shares the globals with the test.
+        $now = \microtime(true);
+        $_SERVER = $request->server + ['REQUEST_TIME_FLOAT' => $now, 'REQUEST_TIME' => (int) $now];
         $_GET = $request->query;
         $_POST = $request->post;
         $_COOKIE = $request->cookies;
