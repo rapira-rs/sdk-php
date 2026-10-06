@@ -34,6 +34,18 @@
       <code><![CDATA[splitHostPort]]></code>
     </MissingPureAnnotation>
   </file>
+  <file src="packages/testing/src/Double/FakeRuntime.php">
+    <MissingPureAnnotation>
+      <code><![CDATA[__construct]]></code>
+      <code><![CDATA[finishRequest]]></code>
+      <code><![CDATA[log]]></code>
+    </MissingPureAnnotation>
+  </file>
+  <file src="packages/testing/src/Double/WorkerRequest.php">
+    <MissingPureAnnotation>
+      <code><![CDATA[__construct]]></code>
+    </MissingPureAnnotation>
+  </file>
   <file src="packages/testing/src/Testo/Attribute/RunRapira.php">
     <ClassMustBeFinal>
       <code><![CDATA[RunRapira]]></code>
