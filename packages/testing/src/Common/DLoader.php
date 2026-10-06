@@ -6,7 +6,9 @@ namespace Rapira\Sdk\Testing\Common;
 
 use Internal\DLoad\Bootstrap;
 use Internal\DLoad\DLoad;
+use Internal\DLoad\Module\Common\OperatingSystem;
 use Internal\DLoad\Module\Config\Schema\Action\Download as DownloadConfig;
+use Internal\DLoad\Module\Config\Schema\Action\Type;
 use Internal\DLoad\Service\Logger as DLoadLogger;
 use Internal\Path;
 use Psr\Log\LoggerInterface;
@@ -23,7 +25,7 @@ use Symfony\Component\Console\Style\SymfonyStyle;
  *
  * Rather than reading a project `dload.xml`, the software definition (GitHub repository and extraction
  * rules) is assembled in memory so the download is fully self-contained: the release asset is pinned to
- * the requested embedded-PHP version, and the binary together with its bundled `libphp` is extracted
+ * the requested embedded-PHP version, and the binary together with its bundled runtime is extracted
  * into an explicit destination.
  */
 final readonly class DLoader
@@ -33,21 +35,28 @@ final readonly class DLoader
 
     /**
      * @param LoggerInterface $logger Receives each line of dload output at debug level.
+     * @param \SplFileInfo|null $archive Local release asset to extract instead of downloading one from
+     * GitHub (no network); it must have the layout of the release for the host OS.
      */
     public function __construct(
         private LoggerInterface $logger = new NullLogger(),
+        private ?\SplFileInfo $archive = null,
     ) {}
 
     /**
-     * Download `rapira` (and its bundled `libphp.*`) into $destination.
+     * Download `rapira` and its bundled runtime into $destination; the binary always lands at
+     * `{destination}/rapira` (`rapira.exe` on Windows).
      *
-     * Flat extraction: only the files matched by the `<binary>`/`<file>` rules are pulled out of the
-     * release tarball and dropped side by side into $destination, so both end up directly there:
-     * `{destination}/rapira` and `{destination}/libphp.so`. The shipped binary resolves the library via
-     * a relative rpath (`$ORIGIN/../lib/rapira`); placing `libphp.so` next to the binary changes that
-     * layout, so at runtime the loader must be pointed at $destination (e.g. via `LD_LIBRARY_PATH`).
+     * Linux/macOS — flat extraction: the release tarball nests `bin/rapira` and `lib/rapira/libphp.*`;
+     * every file is pulled out by name and dropped side by side into $destination. The shipped binary
+     * resolves the library via a relative rpath (`$ORIGIN/../lib/rapira`), so at runtime the loader must
+     * be pointed at $destination (e.g. via `LD_LIBRARY_PATH`).
      *
-     * @param Path $destination Directory to extract `rapira` and `libphp.*` into.
+     * Windows — structure-preserving extraction: the zip keeps `rapira.exe` and `php8ts.dll` at its root
+     * and the extension DLLs under `ext/`, which the bundled `php.ini` (`extension_dir=ext`) resolves
+     * against. Flattening would leave those extensions unloadable.
+     *
+     * @param Path $destination Directory to extract the release into.
      * @param non-empty-string|null $phpVersion Embedded-PHP version the asset must match; defaults to
      * "8.5" when null.
      *
@@ -78,9 +87,17 @@ final readonly class DLoader
         $action = new DownloadConfig();
         $action->software = self::SOFTWARE;
         $action->extractPath = (string) $destination;
+        # Follows the OS dload resolved for asset selection, so the layout matches the archive it picks.
+        if ($container->get(OperatingSystem::class) === OperatingSystem::Windows) {
+            $action->type = Type::Archive;
+        }
 
         /** @var DLoad $dload */
         $dload = $container->get(DLoad::class);
+        if ($this->archive !== null) {
+            $dload->useMock = true;
+            $dload->mockArchive = $this->archive;
+        }
 
         $failure = null;
         try {
@@ -140,7 +157,7 @@ final readonly class DLoader
                             uri="rapira-rs/rapira-windows"
                             asset-pattern="/^rapira-v.*-php{$phpPattern}-.*/"
                         />
-                        <binary name="rapira" pattern="/^rapira?$/" />
+                        <binary name="rapira" />
                         <file pattern="/^.*$/" />
                     </software>
                 </registry>

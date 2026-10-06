@@ -33,7 +33,7 @@ final class RunRapiraPlugin implements PluginConfigurator
 
     /**
      * @param non-empty-string $binary Absolute path to the rapira executable. When missing, it is
-     * downloaded via dload into its parent directory (alongside the bundled `libphp`).
+     * downloaded via dload into its parent directory, together with its bundled PHP runtime.
      * @param non-empty-string $workingDirectory Absolute path to the application directory containing
      * `worker.php` and `rapira.toml`, from which the server is run.
      * @param non-empty-string|null $phpVersion Embedded-PHP version the downloaded rapira asset must

@@ -14,6 +14,12 @@ use Testo\Application\Config\SuiteConfig;
  */
 return [
     new SuiteConfig(
+        name: 'Testing: Unit',
+        location: new FinderConfig(
+            include: [__DIR__ . '/Unit'],
+        ),
+    ),
+    new SuiteConfig(
         name: 'Testing: Acceptance',
         location: new FinderConfig(
             include: [__DIR__ . '/Acceptance'],
