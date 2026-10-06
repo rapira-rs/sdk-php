@@ -54,11 +54,32 @@ final class DispatcherRequestFactoryTest
     }
 
     #[Test]
-    public function testQueryParamsAreParsedFromUri(): void
+    public function testQueryParamsAreParsedFromTarget(): void
     {
-        $request = $this->create(self::request(uri: 'http://host/p?a=1&b[]=2&b[]=3'));
+        $request = $this->create(self::request(target: '/p?a=1&b[]=2&b[]=3'));
 
         Assert::same($request->getQueryParams(), ['a' => '1', 'b' => ['2', '3']]);
+    }
+
+    #[Test]
+    public function testQueryIsTakenFromTargetAsSent(): void
+    {
+        $request = $this->create(self::request(
+            uri: 'http://host/p?e=[1]&a=%zz&c+d=x%20y',
+            target: '/p?e=[1]&a=%zz&c+d=x%20y',
+        ));
+
+        Assert::same($request->getServerParams()['QUERY_STRING'], 'e=[1]&a=%zz&c+d=x%20y');
+        Assert::same($request->getQueryParams(), ['e' => '[1]', 'a' => '%zz', 'c_d' => 'x y']);
+    }
+
+    #[Test]
+    public function testQueryIsNotTakenFromUri(): void
+    {
+        $request = $this->create(self::request(uri: 'http://host/p?from=uri', target: '/p'));
+
+        Assert::same($request->getServerParams()['QUERY_STRING'], '');
+        Assert::same($request->getQueryParams(), []);
     }
 
     #[Test]
