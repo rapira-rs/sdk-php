@@ -119,6 +119,27 @@ try {
 
 Like the extension, `handle_request()` and `get_dispatcher()` refuse outside their mode. The installed double is process-wide: reset it after every test that installs one.
 
+### HTTP dispatcher mode
+
+`FakeHttpDispatcher` hands out queued `FakeExchange`s in order, then throws `ClosedException` as a drained host does. Each `FakeExchange` records what the worker writes and enforces the host's ordering rules: one final head, body until `$eos`, nothing after finalization.
+
+```php
+use Rapira\Mode;
+use Rapira\Sdk\Testing\Double\FakeRuntime;
+use Rapira\Sdk\Testing\Double\Http\FakeExchange;
+use Rapira\Sdk\Testing\Double\Http\FakeHttpDispatcher;
+
+$exchange = FakeExchange::for('/users/42', headers: ['accept' => ['application/json']]);
+(new FakeRuntime(Mode::Dispatcher, new FakeHttpDispatcher($exchange)))->install();
+
+$app->run(); // receives from \Rapira\get_dispatcher() until it is drained
+
+// $exchange->status, $exchange->header('content-type'), $exchange->getBody(), $exchange->isFinalized()
+```
+
+- **Host-side failures:** `discard()` makes the exchange arrive already cancelled; `discardOnWrite()` makes the first write find it closed; `refuseFiles` makes `sendFile()` throw `FileNotSendableException`.
+- **Receive hook:** `FakeHttpDispatcher::$beforeReceive` runs before every `receive()`, e.g. to check what the worker released, and `$receives` counts the calls.
+
 ## GitHub API limits and the version cache
 
 Every suite that has to fetch the binary asks the GitHub API which releases `rapira-rs/rapira` (or
