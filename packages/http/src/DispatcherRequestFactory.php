@@ -88,6 +88,8 @@ final readonly class DispatcherRequestFactory
 
     /**
      * @return array<string, mixed>
+     *
+     * @psalm-capabilities read-props
      */
     private function createServerParams(Request $request, string $query): array
     {
@@ -283,6 +285,8 @@ final readonly class DispatcherRequestFactory
      * Case-insensitive header lookup returning the values joined with the separator.
      *
      * @param array<non-empty-string, list<string>> $headers
+     *
+     * @psalm-pure
      */
     private function headerLine(array $headers, string $name, string $separator = ', '): string
     {
