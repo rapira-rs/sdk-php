@@ -41,6 +41,30 @@
       <code><![CDATA[log]]></code>
     </MissingPureAnnotation>
   </file>
+  <file src="packages/testing/src/Double/Http/FakeExchange.php">
+    <MissingPureAnnotation>
+      <code><![CDATA[assertOpen]]></code>
+      <code><![CDATA[discard]]></code>
+      <code><![CDATA[discardOnWrite]]></code>
+      <code><![CDATA[flush]]></code>
+      <code><![CDATA[getBody]]></code>
+      <code><![CDATA[header]]></code>
+      <code><![CDATA[isFinalized]]></code>
+      <code><![CDATA[sendFile]]></code>
+      <code><![CDATA[writeBody]]></code>
+      <code><![CDATA[writeHead]]></code>
+      <code><![CDATA[writeTrailers]]></code>
+    </MissingPureAnnotation>
+  </file>
+  <file src="packages/testing/src/Double/Http/FakeHttpDispatcher.php">
+    <MissingPureAnnotation>
+      <code><![CDATA[__construct]]></code>
+      <code><![CDATA[getInfo]]></code>
+      <code><![CDATA[name]]></code>
+      <code><![CDATA[push]]></code>
+      <code><![CDATA[tryReceive]]></code>
+    </MissingPureAnnotation>
+  </file>
   <file src="packages/testing/src/Double/WorkerRequest.php">
     <MissingPureAnnotation>
       <code><![CDATA[__construct]]></code>
