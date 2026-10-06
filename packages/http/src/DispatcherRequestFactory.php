@@ -107,6 +107,8 @@ final readonly class DispatcherRequestFactory
 
     private function populateBody(ServerRequestInterface $request, Request $source): ServerRequestInterface
     {
+        // A form is read by its `Content-Type` whatever the method, as the host reads any body by its
+        // framing; PHP's `$_POST` is filled for `POST` alone, which would leave `PUT` or `QUERY` forms raw.
         if ($source->body instanceof Multipart) {
             return $request
                 ->withBody($this->streamFactory->createStream())
@@ -116,8 +118,9 @@ final readonly class DispatcherRequestFactory
 
         $request = $request->withBody($this->streamFactory->createStream($source->body));
 
+        // PHP compares the media type case-insensitively, cut at the first `;`, `,` or space.
         $contentType = $this->headerLine($source->headers, 'content-type');
-        if (\preg_match('~^application/x-www-form-urlencoded(?:$| |;)~', $contentType) === 1) {
+        if (\preg_match('~^application/x-www-form-urlencoded(?:$|[;, ])~i', $contentType) === 1) {
             $request = $request->withParsedBody($this->parseQuery($source->body));
         }
 
