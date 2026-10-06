@@ -59,6 +59,32 @@ final readonly class DispatcherRequestFactory
     }
 
     /**
+     * PHP drops an upload whose name has an unclosed bracket or text after a `]` instead of repairing
+     * it as it does for a text field: `a[b`, `a]`, `a[b]c` and `a[[b]]` never reach `$_FILES`.
+     *
+     * @psalm-pure
+     */
+    private static function isUploadName(string $name): bool
+    {
+        $depth = 0;
+        for ($i = 0, $length = \strlen($name); $i < $length; $i++) {
+            if ($name[$i] === '[') {
+                $depth++;
+            } elseif ($name[$i] === ']') {
+                $depth--;
+                if ($i + 1 < $length && $name[$i + 1] !== '[') {
+                    return false;
+                }
+            }
+            if ($depth < 0) {
+                return false;
+            }
+        }
+
+        return $depth === 0;
+    }
+
+    /**
      * @return array<string, mixed>
      */
     private function createServerParams(Request $request): array
@@ -148,12 +174,24 @@ final readonly class DispatcherRequestFactory
      */
     private function createUploadedFiles(Multipart $multipart): array
     {
+        // Same trick as the fields: `parse_str()` mangles and nests each name into a tree of indexes,
+        // and every index is then swapped for its file.
+        $pairs = [];
         $files = [];
-        foreach ($multipart->files as $file) {
-            $this->addNested($files, $file->name, $this->createUploadedFile($file));
+        foreach ($multipart->files as $index => $file) {
+            if (!self::isUploadName($file->name)) {
+                continue;
+            }
+            $pairs[] = \rawurlencode($file->name) . '=' . $index;
+            $files[$index] = $file;
         }
 
-        return $files;
+        $tree = $this->parseQuery(\implode('&', $pairs));
+        \array_walk_recursive($tree, function (mixed &$value) use ($files): void {
+            $value = $this->createUploadedFile($files[(int) $value]);
+        });
+
+        return $tree;
     }
 
     private function createUploadedFile(UploadedFile $file): UploadedFileInterface
@@ -171,64 +209,6 @@ final readonly class DispatcherRequestFactory
             $file->clientFilename,
             $file->clientMediaType,
         );
-    }
-
-    /**
-     * Inserts a value into a nested array following PHP's `name[key][]` bracket notation.
-     *
-     * @param array<array-key, mixed> $target
-     */
-    private function addNested(array &$target, string $name, mixed $value): void
-    {
-        if (\preg_match('/^([^\[]+)((?:\[[^\]]*])*)$/', $name, $matches) !== 1) {
-            $target[$name] = $value;
-            return;
-        }
-
-        $keys = [$matches[1]];
-        if ($matches[2] !== '') {
-            \preg_match_all('/\[([^\]]*)]/', $matches[2], $bracketed);
-            foreach ($bracketed[1] as $key) {
-                $keys[] = $key;
-            }
-        }
-
-        $this->insert($target, $keys, $value);
-    }
-
-    /**
-     * @param array<array-key, mixed> $target
-     * @param list<string> $keys
-     *
-     * @psalm-suppress MixedArrayAssignment, MixedArgument
-     */
-    private function insert(array &$target, array $keys, mixed $value): void
-    {
-        $key = \array_shift($keys);
-        if ($key === null) {
-            return;
-        }
-
-        if ($key === '') {
-            $target[] = $keys === [] ? $value : [];
-            if ($keys !== []) {
-                /** @var array-key $last */
-                $last = \array_key_last($target);
-                $child = &$target[$last];
-                $this->insert($child, $keys, $value);
-            }
-            return;
-        }
-
-        if ($keys === []) {
-            $target[$key] = $value;
-            return;
-        }
-
-        if (!isset($target[$key]) || !\is_array($target[$key])) {
-            $target[$key] = [];
-        }
-        $this->insert($target[$key], $keys, $value);
     }
 
     /**
