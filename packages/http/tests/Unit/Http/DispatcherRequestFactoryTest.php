@@ -8,6 +8,7 @@ use HttpSoft\Message\ServerRequestFactory;
 use HttpSoft\Message\StreamFactory;
 use HttpSoft\Message\UploadedFileFactory;
 use Psr\Http\Message\StreamFactoryInterface;
+use Psr\Http\Message\UploadedFileInterface;
 use Rapira\Http\FormField;
 use Rapira\Http\Multipart;
 use Rapira\Http\Request;
@@ -359,6 +360,49 @@ final class DispatcherRequestFactoryTest
     }
 
     #[Test]
+    public function testMultipartFileNamesAreMangledLikeTextFields(): void
+    {
+        $multipart = new Multipart(
+            fields: [],
+            files: [
+                self::file('a.b', 'dot'),
+                self::file('c d', 'space'),
+                self::file('g.h[i.j]', 'nested'),
+                self::file('x[y][]', 'first'),
+                self::file('x[y][]', 'second'),
+                self::file('dup', 'earlier'),
+                self::file('dup', 'later'),
+            ],
+        );
+
+        $files = $this->create(self::request(method: 'POST', body: $multipart))->getUploadedFiles();
+
+        Assert::same(self::clientFilenames($files), [
+            'a_b' => 'dot',
+            'c_d' => 'space',
+            'g_h' => ['i.j' => 'nested'],
+            'x' => ['y' => ['first', 'second']],
+            'dup' => 'later',
+        ]);
+    }
+
+    #[Test]
+    #[DataSet(['u[v'], 'unclosed bracket')]
+    #[DataSet(['n]o'], 'stray closing bracket')]
+    #[DataSet(['p[q]r]'], 'text after a bracket')]
+    #[DataSet(['z[a]b[c]'], 'text between brackets')]
+    #[DataSet(['a[[b]]'], 'bracket inside a bracket')]
+    #[DataSet(['[m]'], 'no base name')]
+    public function testMultipartFileWithMalformedNameIsDropped(string $name): void
+    {
+        $multipart = new Multipart(fields: [], files: [self::file($name, 'bad'), self::file('ok', 'good')]);
+
+        $files = $this->create(self::request(method: 'POST', body: $multipart))->getUploadedFiles();
+
+        Assert::same(self::clientFilenames($files), ['ok' => 'good']);
+    }
+
+    #[Test]
     public function testMultipartFileWithEmptyClientFilenameIsReportedAsNoFile(): void
     {
         $multipart = new Multipart(
@@ -426,6 +470,25 @@ final class DispatcherRequestFactoryTest
             $server,
             $tls,
             $receivedAt,
+        );
+    }
+
+    private static function file(string $name, string $clientFilename): UploadedFile
+    {
+        return new UploadedFile($name, $clientFilename, 'text/plain', [], self::fixture('image'), 463);
+    }
+
+    /**
+     * @param array<array-key, mixed> $files
+     * @return array<array-key, mixed>
+     */
+    private static function clientFilenames(array $files): array
+    {
+        return \array_map(
+            static fn(mixed $file): mixed => $file instanceof UploadedFileInterface
+                ? $file->getClientFilename()
+                : self::clientFilenames((array) $file),
+            $files,
         );
     }
 
