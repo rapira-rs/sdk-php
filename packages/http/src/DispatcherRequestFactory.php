@@ -33,11 +33,13 @@ final readonly class DispatcherRequestFactory
     public function create(Exchange $exchange): ServerRequestInterface
     {
         $source = $exchange->getRequest();
+        // PHP reads the query from the request-target as sent, not from a URI re-encoded on the way.
+        $query = \explode('?', $source->target, 2)[1] ?? '';
 
         $request = $this->serverRequestFactory->createServerRequest(
             $source->method,
             $source->uri,
-            $this->createServerParams($source),
+            $this->createServerParams($source, $query),
         );
 
         // Protocol arrives as `HTTP/1.1`, `HTTP/2`, `HTTP/3`; PSR-7 wants the version alone.
@@ -52,7 +54,7 @@ final readonly class DispatcherRequestFactory
         }
 
         $request = $request
-            ->withQueryParams($this->parseQuery($request->getUri()->getQuery()))
+            ->withQueryParams($this->parseQuery($query))
             ->withCookieParams($this->parseCookies($this->headerLine($source->headers, 'cookie', '; ')));
 
         return $this->populateBody($request, $source);
@@ -87,11 +89,12 @@ final readonly class DispatcherRequestFactory
     /**
      * @return array<string, mixed>
      */
-    private function createServerParams(Request $request): array
+    private function createServerParams(Request $request, string $query): array
     {
         $params = [
             'REQUEST_METHOD' => $request->method,
             'REQUEST_URI' => $request->target,
+            'QUERY_STRING' => $query,
             'SERVER_PROTOCOL' => $request->protocol,
             'REQUEST_TIME' => (int) $request->receivedAt,
             'REQUEST_TIME_FLOAT' => $request->receivedAt,
