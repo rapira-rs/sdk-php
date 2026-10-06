@@ -32,7 +32,7 @@
         "testo/testo": "^0.10.42"
     },
     "require-dev": {
-        "rapira/contract": "dev-master"
+        "rapira/contract": "^0.9"
     },
     "autoload": {
         "psr-4": {
