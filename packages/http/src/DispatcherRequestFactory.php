@@ -91,20 +91,31 @@ final readonly class DispatcherRequestFactory
      */
     private function createServerParams(Request $request, string $query): array
     {
+        $https = $request->tls !== null || \str_starts_with($request->uri, 'https:');
+
         $params = [
-            'REQUEST_METHOD' => $request->method,
-            'REQUEST_URI' => $request->target,
-            'QUERY_STRING' => $query,
+            'GATEWAY_INTERFACE' => 'CGI/1.1',
+            'SERVER_SOFTWARE' => 'Rapira',
             'SERVER_PROTOCOL' => $request->protocol,
+            'REQUEST_METHOD' => $request->method,
+            'REQUEST_SCHEME' => $https ? 'https' : 'http',
+            'REQUEST_URI' => $request->target,
+            'DOCUMENT_URI' => \explode('?', $request->target, 2)[0],
+            'QUERY_STRING' => $query,
             'REQUEST_TIME' => (int) $request->receivedAt,
             'REQUEST_TIME_FLOAT' => $request->receivedAt,
         ];
+
+        $host = \parse_url($request->uri, \PHP_URL_HOST);
+        if (\is_string($host) && $host !== '') {
+            $params['SERVER_NAME'] = \trim($host, '[]');
+        }
 
         if ($request->authority !== null) {
             $params['HTTP_HOST'] = $request->authority;
         }
 
-        if ($request->tls !== null) {
+        if ($https) {
             $params['HTTPS'] = 'on';
         }
 
@@ -122,13 +133,19 @@ final readonly class DispatcherRequestFactory
             $params['SERVER_ADDR'] = $request->server->path;
         }
 
-        // Mirror the headers into the `HTTP_*` / `CONTENT_*` slots SAPI-oriented code still reads.
         foreach ($request->headers as $name => $values) {
-            $key = \strtoupper(\str_replace('-', '_', $name));
-            if ($key !== 'CONTENT_TYPE' && $key !== 'CONTENT_LENGTH') {
-                $key = 'HTTP_' . $key;
+            // In worker mode the host drops a field named outside `[A-Za-z0-9-]` before filling
+            // `$_SERVER`: `X_Forwarded_For` or `X.Forwarded.For` would pose as `HTTP_X_FORWARDED_FOR`.
+            if (\preg_match('/^[A-Za-z0-9-]+$/D', $name) !== 1) {
+                continue;
             }
-            $params[$key] = \implode($key === 'HTTP_COOKIE' ? '; ' : ', ', $values);
+
+            $key = \strtoupper(\str_replace('-', '_', $name));
+            $value = \implode($key === 'COOKIE' ? '; ' : ', ', $values);
+            $params['HTTP_' . $key] = $value;
+            if ($key === 'CONTENT_TYPE' || $key === 'CONTENT_LENGTH') {
+                $params[$key] = $value;
+            }
         }
 
         return $params;
