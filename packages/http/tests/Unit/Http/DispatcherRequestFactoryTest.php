@@ -247,8 +247,84 @@ final class DispatcherRequestFactoryTest
         $params = $request->getServerParams();
 
         Assert::same($params['CONTENT_TYPE'], 'application/json');
+        Assert::same($params['HTTP_CONTENT_TYPE'], 'application/json');
         Assert::same($params['CONTENT_LENGTH'], '12');
+        Assert::same($params['HTTP_CONTENT_LENGTH'], '12');
         Assert::same($params['HTTP_X_CUSTOM'], 'v1, v2');
+    }
+
+    #[Test]
+    public function testHeadersNamedOutsideTokenAlphabetAreNotMirrored(): void
+    {
+        $request = $this->create(self::request(headers: [
+            'x-forwarded-for' => ['1.1.1.1'],
+            'X_Forwarded_For' => ['6.6.6.6'],
+            'X.Forwarded.For' => ['7.7.7.7'],
+            'x~tilde' => ['1'],
+        ]));
+
+        $params = $request->getServerParams();
+
+        Assert::same($params['HTTP_X_FORWARDED_FOR'], '1.1.1.1');
+        Assert::same(\array_keys(\array_filter(
+            $params,
+            static fn(string $key): bool => \str_starts_with($key, 'HTTP_'),
+            \ARRAY_FILTER_USE_KEY,
+        )), ['HTTP_X_FORWARDED_FOR']);
+        Assert::same($request->getHeaderLine('X_Forwarded_For'), '6.6.6.6');
+    }
+
+    #[Test]
+    public function testCgiServerParams(): void
+    {
+        $request = $this->create(self::request(
+            uri: 'http://Example.COM:8080/a/b?x=1',
+            target: '/a/b?x=1',
+            authority: 'Example.COM:8080',
+        ));
+
+        $params = $request->getServerParams();
+
+        Assert::same($params['GATEWAY_INTERFACE'], 'CGI/1.1');
+        Assert::same($params['SERVER_SOFTWARE'], 'Rapira');
+        Assert::same($params['REQUEST_SCHEME'], 'http');
+        Assert::same($params['SERVER_NAME'], 'Example.COM');
+        Assert::same($params['HTTP_HOST'], 'Example.COM:8080');
+        Assert::same($params['DOCUMENT_URI'], '/a/b');
+        Assert::same($params['QUERY_STRING'], 'x=1');
+    }
+
+    #[Test]
+    public function testServerNameOfIpv6Authority(): void
+    {
+        $request = $this->create(self::request(uri: 'http://[::1]:8080/', authority: '[::1]:8080'));
+
+        Assert::same($request->getServerParams()['SERVER_NAME'], '::1');
+    }
+
+    #[Test]
+    public function testHttpsSchemeComesFromTheListener(): void
+    {
+        $params = $this->create(self::request(uri: 'https://example.com/'))->getServerParams();
+
+        Assert::same($params['REQUEST_SCHEME'], 'https');
+        Assert::same($params['HTTPS'], 'on');
+    }
+
+    #[Test]
+    public function testScriptParamsAreAbsent(): void
+    {
+        $saved = $_SERVER['SCRIPT_FILENAME'] ?? null;
+        $_SERVER['SCRIPT_FILENAME'] = '/srv/worker.php';
+        try {
+            $params = $this->create(self::request())->getServerParams();
+        } finally {
+            $_SERVER['SCRIPT_FILENAME'] = $saved;
+        }
+
+        foreach (['SCRIPT_FILENAME', 'SCRIPT_NAME', 'PHP_SELF', 'DOCUMENT_ROOT'] as $key) {
+            Assert::false(\array_key_exists($key, $params));
+        }
     }
 
     #[Test]
