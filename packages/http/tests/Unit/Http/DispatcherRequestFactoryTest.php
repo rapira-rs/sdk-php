@@ -20,6 +20,7 @@ use Rapira\Sdk\Tests\Support\FailingFileStreamFactory;
 use Rapira\Sdk\Tests\Support\StubExchange;
 use Testo\Assert;
 use Testo\Codecov\Covers;
+use Testo\Data\DataSet;
 use Testo\Test;
 
 #[Covers(DispatcherRequestFactory::class)]
@@ -242,6 +243,58 @@ final class DispatcherRequestFactoryTest
     }
 
     #[Test]
+    #[DataSet(['Application/X-WWW-Form-Urlencoded'], 'mixed case')]
+    #[DataSet(['application/x-www-form-urlencoded; charset=UTF-8'], 'parameter')]
+    #[DataSet(['application/x-www-form-urlencoded,text/plain'], 'comma')]
+    #[DataSet(['application/x-www-form-urlencoded charset'], 'space')]
+    public function testFormContentTypeMatchesTheWayPhpDoes(string $contentType): void
+    {
+        $request = $this->create(self::request(
+            method: 'POST',
+            headers: ['Content-Type' => [$contentType]],
+            body: 'a=1',
+        ));
+
+        Assert::same($request->getParsedBody(), ['a' => '1']);
+    }
+
+    #[Test]
+    public function testFormContentTypeWithSuffixIsNotParsed(): void
+    {
+        $request = $this->create(self::request(
+            method: 'POST',
+            headers: ['Content-Type' => ['application/x-www-form-urlencodedx']],
+            body: 'a=1',
+        ));
+
+        Assert::null($request->getParsedBody());
+    }
+
+    #[Test]
+    #[DataSet(['POST'])]
+    #[DataSet(['PUT'])]
+    #[DataSet(['PATCH'])]
+    #[DataSet(['DELETE'])]
+    #[DataSet(['GET'])]
+    #[DataSet(['QUERY'])]
+    #[DataSet(['post'], 'lowercase')]
+    #[DataSet(['PROPFIND'], 'extension method')]
+    public function testFormBodyIsParsedWhateverTheMethod(string $method): void
+    {
+        $form = $this->create(self::request(
+            method: $method,
+            headers: ['Content-Type' => ['application/x-www-form-urlencoded']],
+            body: 'a=1',
+        ));
+        $multipart = $this->create(self::request(method: $method, body: self::multipartWithFile()));
+
+        Assert::same($form->getParsedBody(), ['a' => '1']);
+        Assert::same((string) $form->getBody(), 'a=1');
+        Assert::same($multipart->getParsedBody(), ['name' => 'John']);
+        Assert::same(\array_keys($multipart->getUploadedFiles()), ['avatar']);
+    }
+
+    #[Test]
     public function testNonFormBodyIsNotParsed(): void
     {
         $request = $this->create(self::request(
@@ -373,6 +426,14 @@ final class DispatcherRequestFactoryTest
             $server,
             $tls,
             $receivedAt,
+        );
+    }
+
+    private static function multipartWithFile(): Multipart
+    {
+        return new Multipart(
+            fields: [new FormField('name', 'John', [])],
+            files: [new UploadedFile('avatar', 'face.jpg', 'image/jpeg', [], self::fixture('image'), 463)],
         );
     }
 
