@@ -31,7 +31,7 @@
     ],
     "require": {
         "php": ">=8.4",
-        "rapira/http": "^0.1.2",
+        "rapira/http": "^0.1.3",
         "rapira/testing": "^0.1.5"
     },
     "require-dev": {
