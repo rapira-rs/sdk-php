@@ -23,6 +23,10 @@
         {
             "type": "boosty",
             "url": "https://boosty.to/roxblnfk"
+        },
+        {
+            "type": "github",
+            "url": "https://github.com/sponsors/rapira-rs"
         }
     ],
     "require": {
