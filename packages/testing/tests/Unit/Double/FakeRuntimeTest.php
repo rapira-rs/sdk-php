@@ -96,6 +96,24 @@ final class FakeRuntimeTest
         }
     }
 
+    public function requestServerHoldsNothingFromTheProcess(): void
+    {
+        $_SERVER['HTTP_RAPIRA_TEST_BOOT'] = 'boot';
+        (new FakeRuntime(Mode::Worker, requests: [['REQUEST_URI' => '/']]))->install();
+        $seen = [];
+
+        try {
+            handle_request(static function () use (&$seen): bool {
+                $seen = \array_keys($_SERVER);
+                return true;
+            });
+        } finally {
+            unset($_SERVER['HTTP_RAPIRA_TEST_BOOT']);
+        }
+
+        Assert::same($seen, ['REQUEST_URI', 'REQUEST_TIME_FLOAT', 'REQUEST_TIME']);
+    }
+
     public function queuedRequestDescribesItselfAsAWebServerWould(): void
     {
         (new FakeRuntime(Mode::Worker))->queue('GET', '/search?q=rapira&page=2', cookies: ['sid' => 'abc'])->install();
