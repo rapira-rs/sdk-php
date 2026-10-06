@@ -10,20 +10,24 @@ on:  # yamllint disable-line rule:truthy
     branches:
       - 1.x
 
+env:
+  DLOAD_CACHE_DIR: ${{ github.workspace }}/runtime/dload-cache
+
 jobs:
   testing:
-    timeout-minutes: 4
+    timeout-minutes: 10
     runs-on: ${{ matrix.os }}
     env:
       COMPOSER_ROOT_VERSION: '1.x-dev'
     concurrency:
       cancel-in-progress: true
-      group: testing-${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}-${{ matrix.php-version }}-${{ matrix.dependencies }}
+      group: testing-${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}-${{ matrix.os }}-${{ matrix.php-version }}-${{ matrix.dependencies }}
     strategy:
       fail-fast: false
       matrix:
         os:
           - ubuntu-latest
+          - windows-latest
         php-version:
           - '8.4'
           - '8.5'
@@ -49,5 +53,16 @@ jobs:
         with:
           dependency-versions: ${{ matrix.dependencies }}
 
+      # A cache entry is immutable, so `run_id` keeps the key missing on every run
+      # and `restore-keys` reads back the newest entry.
+      - name: 🗄️ Restore the dload version registry
+        uses: actions/cache@v6
+        with:
+          path: runtime/dload-cache
+          key: dload-registry-${{ github.run_id }}-${{ matrix.os }}-${{ matrix.php-version }}
+          restore-keys: dload-registry-
+
       - name: 🧪 Run tests
         run: composer test
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
