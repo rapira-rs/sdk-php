@@ -28,12 +28,9 @@
     </MissingPureAnnotation>
   </file>
   <file src="packages/testing/src/Common/Runner.php">
-    <ArgumentTypeCoercion>
-      <code><![CDATA[$workerPath]]></code>
-    </ArgumentTypeCoercion>
     <MissingPureAnnotation>
       <code><![CDATA[__construct]]></code>
-      <code><![CDATA[isAbsolutePath]]></code>
+      <code><![CDATA[hostHeader]]></code>
       <code><![CDATA[splitHostPort]]></code>
     </MissingPureAnnotation>
   </file>
